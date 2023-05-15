@@ -1,28 +1,46 @@
-from flask import Flask, redirect, url_for, render_template, request
+from flask import Flask, request, redirect, render_template, url_for
+import sqlite3
 
 app = Flask(__name__)
+db_path = 'nfc_data.db'  # Path to your SQLite database file
 
-# Dictionary of NFC IDs and corresponding URLs
-nfc_urls = {
-    '0001': 'https://google.com',
-    '0002': 'https://www.amazon.com/dp/B0987N5Q9L/ref=twister_B0987M7HB6?_encoding=UTF8&th=1&psc=1',
-    '0003': 'https://netflix.com'
-}
+# API endpoint to update the configurable URL for a specific NFC tag ID
+@app.route('/update_url', methods=['POST'])
+def update_url():
+    data = request.get_json()
+    nfc_tag_id = data.get('nfc_tag_id')
+    new_url = data.get('url')
 
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE nfc_tags SET url = ? WHERE tag_id = ?", (new_url, nfc_tag_id))
+    conn.commit()
+    conn.close()
+
+    return 'URL updated successfully.'
+
+# API endpoint to handle NFC tag redirection
+@app.route('/redirect/<nfc_tag_id>')
+def redirect_nfc(nfc_tag_id):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT url FROM nfc_tags WHERE tag_id = ?", (nfc_tag_id,))
+    result = cursor.fetchone()
+    conn.close()
+
+    if result:
+        return redirect(result[0])
+    else:
+        return 'NFC tag not found.'
+
+# Home route to display the index.html page
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
         nfc_id = request.form['nfc_id']
-        return redirect(url_for('nfc_redirect', nfc_id=nfc_id))
+        return redirect(url_for('redirect_nfc', nfc_tag_id=nfc_id))
     else:
         return render_template('index.html')
 
-@app.route('/nfc-redirect/<nfc_id>', methods=['GET'])
-def nfc_redirect(nfc_id):
-    if nfc_id in nfc_urls:
-        return redirect(nfc_urls[nfc_id])
-    else:
-        return "Error: NFC ID not found."
-
 if __name__ == '__main__':
-    app.run(debug=True, port=8080)
+    app.run()
