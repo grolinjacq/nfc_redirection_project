@@ -19,6 +19,23 @@ def update_url():
 
     return 'URL updated successfully.'
 
+# API endpoint to add a list of NFC IDs with matching URLs
+@app.route('/add_nfc_ids', methods=['POST'])
+def add_nfc_ids():
+    data = request.get_json()
+    nfc_ids = data.get('nfc_ids')
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    for nfc_id, url in nfc_ids.items():
+        cursor.execute("INSERT INTO nfc_tags (tag_id, url) VALUES (?, ?)", (nfc_id, url))
+
+    conn.commit()
+    conn.close()
+
+    return 'NFC IDs added successfully.'
+
 # API endpoint to handle NFC tag redirection
 @app.route('/redirect/<nfc_tag_id>')
 def redirect_nfc(nfc_tag_id):
