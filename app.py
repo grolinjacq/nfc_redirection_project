@@ -1,52 +1,31 @@
 from flask import Flask, request, redirect, render_template, url_for
-import sqlite3
+from flask_sqlalchemy import SQLAlchemy
+from config import config
 
 app = Flask(__name__)
-db_path = 'nfc_data.db'  # Path to your SQLite database file
 
-# API endpoint to update the configurable URL for a specific NFC tag ID
-@app.route('/update_url', methods=['POST'])
-def update_url():
-    data = request.get_json()
-    nfc_tag_id = data.get('nfc_tag_id')
-    new_url = data.get('url')
+# Set the Flask app configuration
+app.config.from_object(config)
 
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE nfc_tags SET url = ? WHERE tag_id = ?", (new_url, nfc_tag_id))
-    conn.commit()
-    conn.close()
+# Initialize the SQLAlchemy extension
+db = SQLAlchemy(app)
 
-    return 'URL updated successfully.'
+# Define the NFC tag model
+class NFCTag(db.Model):
+    __tablename__ = 'nfc_tags'
+    tag_id = db.Column(db.String(50), primary_key=True)
+    url = db.Column(db.String(200))
 
-# API endpoint to add a list of NFC IDs with matching URLs
-@app.route('/add_nfc_ids', methods=['POST'])
-def add_nfc_ids():
-    data = request.get_json()
-    nfc_ids = data.get('nfc_ids')
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    for nfc_id, url in nfc_ids.items():
-        cursor.execute("INSERT INTO nfc_tags (tag_id, url) VALUES (?, ?)", (nfc_id, url))
-
-    conn.commit()
-    conn.close()
-
-    return 'NFC IDs added successfully.'
+    def __repr__(self):
+        return f'<NFCTag {self.tag_id}>'
 
 # API endpoint to handle NFC tag redirection
 @app.route('/redirect/<nfc_tag_id>')
 def redirect_nfc(nfc_tag_id):
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT url FROM nfc_tags WHERE tag_id = ?", (nfc_tag_id,))
-    result = cursor.fetchone()
-    conn.close()
+    tag = NFCTag.query.filter_by(tag_id=nfc_tag_id).first()
 
-    if result:
-        return redirect(result[0])
+    if tag:
+        return redirect(tag.url)
     else:
         return 'NFC tag not found.'
 
